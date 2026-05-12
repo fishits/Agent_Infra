@@ -14,7 +14,7 @@ Agent Infrastructure 是一个轻量级、高性能的多智能体框架，专�
 ### ⭐ 核心亮点
 
 **Nano Framework** - 极简但强大的智能体框架：
-- 🚀 **15 行快速上手** - 最简洁的 API 设计
+- 🚀 **极简 API** - 最直观的智能体定义方式
 - 🔄 **自动节点路由** - 智能体间无缝协作
 - 💾 **会话持久化** - 自动保存和恢复上下文
 - ⚡ **并发工具执行** - 多工具并行调用
@@ -57,7 +57,7 @@ DEEPSEEK_API_KEY=your_key
 
 ## 💡 Nano Framework 使用指南
 
-### 1. 快速开始（15 行代码）
+### 1. 快速开始
 
 ```python
 from nano_framework.framework import node, graph, run, deepseek_llm
@@ -158,16 +158,116 @@ streamlit run streamlit_onlyteam_app.py
 - 监控子智能体并行工作
 - 查看轨迹和性能指标
 
-### 4. 自定义工具（完全自由）
+### 4. Codex - 通用编码智能体
 
-**工具定义非常简单 - 只需装饰器 + 函数：**
+**单智能体模式，适合日常编码任务：**
+
+```bash
+cd "nano framework"
+python Codex/codex_agent.py --stream
+```
+
+Codex 特点：
+- 完整的文件操作和代码执行能力
+- 自动会话管理和恢复
+- 支持后台任务执行
+- 内置 TODO 任务管理
+
+### 5. 自定义工具
+
+**示例 1：数据库查询工具**
 
 ```python
 from nano_framework.framework.tools import tool
+import sqlite3
 
 @tool(
-    description="在数据库中搜索信息",
+    description="在 SQLite 数据库中执行查询",
     params={
+        "query": ("string", "SQL 查询语句"),
+        "db_path": ("string", "数据库文件路径")
+    }
+)
+def query_database(query: str, db_path: str = "data.db") -> str:
+    conn = sqlite3.connect(db_path)
+    cursor = conn.execute(query)
+    results = cursor.fetchall()
+    conn.close()
+    return f"查询返回 {len(results)} 行:\n" + "\n".join(str(row) for row in results)
+```
+
+**示例 2：HTTP API 调用工具**
+
+```python
+@tool(
+    description="调用 REST API",
+    params={
+        "url": ("string", "API 端点 URL"),
+        "method": ("string", "HTTP 方法 GET/POST/PUT/DELETE"),
+        "data": ("object", "请求体数据（JSON）")
+    }
+)
+def call_api(url: str, method: str = "GET", data: dict = None) -> str:
+    import requests
+    response = requests.request(method, url, json=data)
+    return f"状态码: {response.status_code}\n响应: {response.text[:500]}"
+```
+
+**示例 3：邮件发送工具**
+
+```python
+@tool(
+    description="发送邮件通知",
+    params={
+        "to": ("string", "收件人邮箱"),
+        "subject": ("string", "邮件主题"),
+        "body": ("string", "邮件正文")
+    }
+)
+def send_email(to: str, subject: str, body: str) -> str:
+    import smtplib
+    from email.mime.text import MIMEText
+    
+    msg = MIMEText(body)
+    msg['Subject'] = subject
+    msg['To'] = to
+    
+    # 配置你的 SMTP 服务器
+    with smtplib.SMTP('smtp.gmail.com', 587) as server:
+        server.starttls()
+        server.login('your_email@gmail.com', 'your_password')
+        server.send_message(msg)
+    
+    return f"邮件已发送到 {to}"
+```
+
+**使用自定义工具：**
+
+```python
+# 创建智能体并添加自定义工具
+agent = node(
+    name="data_assistant",
+    llm=llm,
+    tools=[
+        query_database,   # 自定义工具
+        call_api,         # 自定义工具
+        send_email,       # 自定义工具
+        read_file,        # 内置工具
+        write_file,       # 内置工具
+        end_decide
+    ],
+    prompt="你是数据助手，可以查询数据库、调用 API、发送邮件",
+    edges={"end": "完成"}
+)
+```
+
+**支持的参数类型：**
+- `string` - 字符串
+- `integer` - 整数  
+- `number` - 浮点数
+- `boolean` - 布尔值
+- `array` - 数组
+- `object` - 对象/字典
         "query": ("string", "搜索关键词"),
         "limit": ("integer", "返回结果数量")
     }
@@ -234,139 +334,6 @@ agent = node(
 - ✅ 自动错误处理
 - ✅ 支持可选参数（默认值）
 - ✅ 支持运行时上下文（`runtime_context` 参数）
-
----
-
-## 🎯 核心概念
-
-### Node（节点）
-每个节点是一个独立的智能体，包含：
-- **LLM**: 语言模型
-- **Tools**: 可用工具列表
-- **Prompt**: 系统提示词
-- **Edges**: 路由规则（跳转到其他节点）
-
-### Graph（图）
-多个节点组成的工作流：
-```python
-graph(
-    nodes=[node1, node2, node3],
-    start_node="node1",  # 起始节点
-    state={"workspace": "./"}  # 共享状态
-)
-```
-
-### 控制流工具
-- `decide(target, content)` - 跳转到指定节点
-- `new_decide(target, content)` - 跳转并清空目标节点记忆
-- `end_decide()` - 结束工作流
-- `chat(message)` - 等待用户输入
-
-### 自动特性
-- ✅ **自动上下文管理** - 无需手动传递消息历史
-- ✅ **自动工具调用** - 强制每轮调用工具
-- ✅ **自动会话保存** - 支持中断恢复
-- ✅ **自动并发执行** - 多工具自动并行
-
----
-
-## 📚 完整示例
-
-### 代码审查工作流
-
-```python
-from nano_framework.framework import node, graph, run, deepseek_llm
-from nano_framework.framework.control_tools import decide, end_decide
-from nano_framework.framework.io_tools import read_file, write_file, list_directory
-
-llm = deepseek_llm(model="deepseek-v4-pro")
-
-# 1. 扫描器 - 找出所有代码文件
-scanner = node(
-    name="scanner",
-    llm=llm,
-    tools=[list_directory, decide],
-    prompt="扫描项目目录，找出所有需要审查的代码文件",
-    edges={"analyzer": "找到文件后传递给分析器"}
-)
-
-# 2. 分析器 - 分析代码质量
-analyzer = node(
-    name="analyzer",
-    llm=llm,
-    tools=[read_file, decide],
-    prompt="""分析代码文件，检查：
-    - 代码规范
-    - 潜在 bug
-    - 性能问题
-    - 安全隐患""",
-    edges={"reporter": "分析完成后"}
-)
-
-# 3. 报告器 - 生成报告
-reporter = node(
-    name="reporter",
-    llm=llm,
-    tools=[write_file, end_decide],
-    prompt="汇总分析结果，生成 Markdown 格式的审查报告",
-    edges={"end": "报告生成完毕"}
-)
-
-# 运行
-g = graph(
-    nodes=[scanner, analyzer, reporter],
-    start_node="scanner",
-    state={"workspace": "./src"}
-)
-run(g, user_message="审查 src/ 目录下的代码")
-```
-
----
-
-## 🛠️ 高级特性
-
-### 1. 流式输出
-
-```python
-run(g, user_message="你的任务", stream=True)
-```
-
-### 2. 会话恢复
-
-```python
-from nano_framework.framework.session import pick_run_id
-
-# 选择之前的会话
-run_id = pick_run_id(run_prefix="my_agent")
-g = graph(nodes=[...], run_id=run_id)
-run(g)
-```
-
-### 3. 自定义事件处理
-
-```python
-def my_event_handler(event: dict):
-    if event["type"] == "tool_call":
-        print(f"调用工具: {event['name']}")
-
-run(g, user_message="任务", event_output=my_event_handler)
-```
-
-### 4. 动态提示词
-
-```python
-def dynamic_prompt(state: dict) -> str:
-    workspace = state.get("workspace", ".")
-    return f"你在 {workspace} 目录工作"
-
-agent = node(
-    name="agent",
-    llm=llm,
-    tools=[...],
-    prompt=dynamic_prompt,  # 函数而非字符串
-    edges={...}
-)
-```
 
 ---
 

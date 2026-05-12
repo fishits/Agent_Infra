@@ -14,11 +14,12 @@ Agent Infrastructure 是一个轻量级、高性能的多智能体框架，专�
 ### ⭐ 核心亮点
 
 **Nano Framework** - 极简但强大的智能体框架：
-- 🚀 **5 行代码创建智能体** - 最简洁的 API 设计
+- 🚀 **15 行快速上手** - 最简洁的 API 设计
 - 🔄 **自动节点路由** - 智能体间无缝协作
 - 💾 **会话持久化** - 自动保存和恢复上下文
 - ⚡ **并发工具执行** - 多工具并行调用
 - 🎯 **Boss-Worker 模式** - OnlyTeam 并行任务分发
+- 🛠️ **工具自由定制** - 装饰器即可扩展任意功能
 
 ### 📦 项目结构
 
@@ -26,8 +27,7 @@ Agent Infrastructure 是一个轻量级、高性能的多智能体框架，专�
 Agent_Infra/
 ├── nano framework/         # ⭐ Nano 框架（推荐）
 │   ├── framework/         # 核心框架实现
-│   ├── OnlyTeam/          # Boss-Worker 多智能体系统
-│   └── DatasetTeam/       # 数据处理智能体团队
+│   └── OnlyTeam/          # Boss-Worker 多智能体系统
 └── langgraph/             # LangGraph 框架实现
     └── README.md          # 详见 LangGraph 文档
 ```
@@ -57,26 +57,27 @@ DEEPSEEK_API_KEY=your_key
 
 ## 💡 Nano Framework 使用指南
 
-### 1. 最简单的智能体（5 行代码）
+### 1. 快速开始（15 行代码）
 
 ```python
 from nano_framework.framework import node, graph, run, deepseek_llm
 from nano_framework.framework.control_tools import end_decide
-from nano_framework.framework.io_tools import read_file, write_file
+from nano_framework.framework.io_tools import read_file, write_file, list_directory
 
-# 创建智能体
 llm = deepseek_llm()
-agent = node(
+
+# 定义智能体
+assistant = node(
     name="assistant",
     llm=llm,
-    tools=[read_file, write_file, end_decide],
-    prompt="你是一个文件助手，帮助用户读写文件",
+    tools=[read_file, write_file, list_directory, end_decide],
+    prompt="你是一个文件助手，帮助用户管理和分析文件",
     edges={"end": "任务完成时使用"}
 )
 
 # 运行
-g = graph(nodes=[agent])
-run(g, user_message="读取 README.md 并总结")
+g = graph(nodes=[assistant])
+run(g, user_message="列出当前目录，读取 README.md 并总结")
 ```
 
 ### 2. 多智能体协作（完整工具配备）
@@ -425,11 +426,12 @@ Agent Infrastructure is a lightweight, high-performance multi-agent framework fo
 ### ⭐ Highlights
 
 **Nano Framework** - Minimal yet powerful:
-- 🚀 **5-line agent creation** - Simplest API design
+- 🚀 **Quick start in 15 lines** - Simplest API design
 - 🔄 **Auto node routing** - Seamless agent collaboration
 - 💾 **Session persistence** - Auto save/restore context
 - ⚡ **Concurrent tool execution** - Parallel tool calls
 - 🎯 **Boss-Worker pattern** - OnlyTeam parallel dispatch
+- 🛠️ **Custom tools** - Extend with decorators
 
 ### 🚀 Quick Start
 

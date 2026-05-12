@@ -79,96 +79,160 @@ g = graph(nodes=[agent])
 run(g, user_message="读取 README.md 并总结")
 ```
 
-### 2. 多智能体协作（3 个节点）
+### 2. 多智能体协作（完整工具配备）
 
 ```python
 from nano_framework.framework import node, graph, run, deepseek_llm
 from nano_framework.framework.control_tools import decide, end_decide
-from nano_framework.framework.io_tools import read_file, write_file
+from nano_framework.framework.io_tools import (
+    read_file, write_file, list_directory, 
+    glob_files, grep_search, apply_diff
+)
 
 llm = deepseek_llm()
 
-# 规划者
+# 规划者 - 配备文件搜索和读取工具
 planner = node(
     name="planner",
     llm=llm,
-    tools=[read_file, decide],
-    prompt="分析任务并制定计划",
+    tools=[
+        list_directory,  # 列出目录结构
+        glob_files,      # 按模式查找文件
+        grep_search,     # 搜索文件内容
+        read_file,       # 读取文件
+        decide           # 路由到下一节点
+    ],
+    prompt="分析项目结构，制定实现计划",
     edges={
         "coder": "需要编写代码时",
-        "writer": "需要写文档时"
+        "reviewer": "需要审查现有代码时"
     }
 )
 
-# 编码者
+# 编码者 - 配备文件读写和编辑工具
 coder = node(
     name="coder",
     llm=llm,
-    tools=[write_file, decide],
-    prompt="编写代码实现功能",
+    tools=[
+        read_file,       # 读取现有代码
+        write_file,      # 创建新文件
+        apply_diff,      # 精确编辑文件
+        decide           # 路由
+    ],
+    prompt="根据计划编写高质量代码",
     edges={"reviewer": "代码完成后"}
 )
 
-# 审查者
+# 审查者 - 配备代码分析工具
 reviewer = node(
     name="reviewer",
     llm=llm,
-    tools=[read_file, end_decide],
-    prompt="审查代码质量",
+    tools=[
+        read_file,       # 读取代码
+        grep_search,     # 搜索潜在问题
+        apply_diff,      # 修复问题
+        end_decide       # 结束流程
+    ],
+    prompt="审查代码质量、规范和安全性",
     edges={"end": "审查通过"}
 )
 
 # 运行多智能体工作流
 g = graph(nodes=[planner, coder, reviewer], start_node="planner")
-run(g, user_message="创建一个 Python 计算器")
+run(g, user_message="创建一个 Python 计算器模块")
 ```
 
 ### 3. OnlyTeam - Boss-Worker 并行分发
 
-**一键启动 Boss 智能体：**
+**启动 Streamlit UI：**
 
 ```bash
 cd "nano framework"
-python OnlyTeam/boss.py
+streamlit run streamlit_onlyteam_app.py
 ```
 
-**Boss 会自动：**
-1. 分析你的任务需求
-2. 生成多个并行任务卡片
-3. 分发给子智能体执行
-4. 汇总结果
+打开浏览器访问 http://localhost:8501，通过可视化界面：
+- 创建和管理多个 Boss 会话
+- 实时查看任务分发和执行
+- 监控子智能体并行工作
+- 查看轨迹和性能指标
 
-**示例对话：**
-```
-Please describe your dispatch request: 
-> 分析 src/ 目录下所有 Python 文件，找出代码质量问题并生成报告
+### 4. 自定义工具（完全自由）
 
-[Boss 自动生成 3 个并行任务]
-Task 1: 扫描文件列表
-Task 2: 并行分析每个文件
-Task 3: 汇总生成报告
-```
-
-### 4. 自定义工具
+**工具定义非常简单 - 只需装饰器 + 函数：**
 
 ```python
 from nano_framework.framework.tools import tool
 
-@tool
-def search_database(query: str) -> str:
-    """在数据库中搜索信息"""
-    # 你的实现
-    return f"搜索结果: {query}"
+@tool(
+    description="在数据库中搜索信息",
+    params={
+        "query": ("string", "搜索关键词"),
+        "limit": ("integer", "返回结果数量")
+    }
+)
+def search_database(query: str, limit: int = 10) -> str:
+    """你的实现逻辑"""
+    results = your_db.search(query, limit=limit)
+    return f"找到 {len(results)} 条结果:\n" + "\n".join(results)
 
-# 添加到智能体
+@tool(
+    description="发送邮件通知",
+    params={
+        "to": ("string", "收件人邮箱"),
+        "subject": ("string", "邮件主题"),
+        "body": ("string", "邮件正文")
+    }
+)
+def send_email(to: str, subject: str, body: str) -> str:
+    """集成你的邮件服务"""
+    your_email_service.send(to, subject, body)
+    return f"邮件已发送到 {to}"
+
+@tool(
+    description="调用外部 API",
+    params={
+        "endpoint": ("string", "API 端点"),
+        "method": ("string", "HTTP 方法"),
+        "data": ("object", "请求数据")
+    }
+)
+def call_api(endpoint: str, method: str = "GET", data: dict = None) -> str:
+    """集成任何 REST API"""
+    response = requests.request(method, endpoint, json=data)
+    return response.text
+
+# 添加到智能体 - 就这么简单！
 agent = node(
-    name="db_agent",
+    name="assistant",
     llm=llm,
-    tools=[search_database, end_decide],
-    prompt="你是数据库助手",
-    edges={"end": "完成"}
+    tools=[
+        search_database,  # 你的自定义工具
+        send_email,       # 你的自定义工具
+        call_api,         # 你的自定义工具
+        read_file,        # 内置工具
+        write_file,       # 内置工具
+        end_decide        # 控制流工具
+    ],
+    prompt="你是全能助手，可以搜索数据库、发邮件、调用 API",
+    edges={"end": "任务完成"}
 )
 ```
+
+**工具参数类型支持：**
+- `string` - 字符串
+- `integer` - 整数
+- `number` - 浮点数
+- `boolean` - 布尔值
+- `array` - 数组
+- `object` - 对象/字典
+
+**工具自动特性：**
+- ✅ 自动转换为 OpenAI tools 格式
+- ✅ 自动参数验证
+- ✅ 自动错误处理
+- ✅ 支持可选参数（默认值）
+- ✅ 支持运行时上下文（`runtime_context` 参数）
 
 ---
 
@@ -305,22 +369,43 @@ agent = node(
 
 ---
 
-## 🔧 可用工具
+## 🔧 内置工具库
 
-### 文件操作
-- `read_file(path)` - 读取文件
-- `write_file(path, content)` - 写入文件
-- `list_directory(path)` - 列出目录
-- `glob_files(pattern)` - 模式匹配文件
-- `grep_search(pattern, path)` - 搜索文件内容
+### 文件操作（完整功能）
+- `read_file(path, start_line, end_line)` - 按行范围读取，自动截断大文件
+- `write_file(path, content)` - 写入文件，自动创建目录
+- `append_file(path, content)` - 追加内容
+- `apply_diff(path, search, replace)` - 精确文本替换
+- `apply_patch(patch)` - 应用多文件补丁
+- `list_directory(path, depth)` - 递归列出目录
+- `glob_files(pattern, max_results)` - 模式匹配查找文件
+- `grep_search(query, include_pattern)` - 正则搜索文件内容
+- `read_many(paths)` - 批量读取多个文件
 
-### 控制流
-- `decide(target, content)` - 节点跳转
-- `chat(message)` - 用户交互
-- `end_decide()` - 结束流程
+### 代码执行
+- `run_python(code, timeout)` - 执行 Python 代码
+- `run_powershell(command, timeout)` - 执行 PowerShell 命令
+- `start_background_powershell(command, log_path)` - 后台执行长任务
+- `check_background_powershell(pid, log_path)` - 检查后台任务状态
 
 ### 并行工具
-- `parallel_tools(tool_calls)` - 并发执行多个工具
+- `parallel_tools(tasks_json)` - 并发执行多个独立工具调用
+
+### 控制流
+- `decide(target, content)` - 跳转到指定节点
+- `new_decide(target, content)` - 跳转并清空目标节点记忆
+- `end_decide()` - 结束工作流
+- `chat(message)` - 等待用户输入
+
+### 任务管理
+- `todo_read()` - 读取持久化 TODO 列表
+- `todo_write(todos_json)` - 更新 TODO 列表
+
+**所有工具都支持：**
+- 自动路径解析（相对于工作目录）
+- 自动错误处理和友好提示
+- 自动结果格式化
+- 运行时上下文传递
 
 ---
 
